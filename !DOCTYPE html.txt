@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriNajisTech - 5 Pemain (Interaktif)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@500;700&display=swap');
+
+        :root {
+            --primary: #4CAF50;
+            --secondary: #FFC107;
+            --danger: #F44336;
+        }
+
+        body {
+            background: radial-gradient(circle, #f0fdf4 0%, #dcfce7 100%);
+            font-family: 'Quicksand', sans-serif;
+            min-height: 100vh;
+        }
+
+        h1 { font-family: 'Fredoka One', cursive; }
+
+        #game-board-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border: 10px solid #3e2723;
+            border-radius: 24px;
+            background: white;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell {
+            border: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.2s;
+        }
+
+        .cell:hover {
+            transform: scale(1.15);
+            z-index: 50;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        .bg-1 { background-color: #fee2e2; }
+        .bg-2 { background-color: #fef9c3; }
+        .bg-3 { background-color: #dcfce7; }
+        .bg-4 { background-color: #dbeafe; }
+        .bg-5 { background-color: #f3e8ff; }
+
+        .bg-win { 
+            background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%); 
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.8);
+        }
+
+        .player-token {
+            width: 9%;
+            height: 9%;
+            border-radius: 50%;
+            position: absolute;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 60;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translate(-50%, -50%);
+            border: 2px solid white;
+        }
+
+        .player-token::after {
+            content: attr(data-emoji);
+            font-size: clamp(16px, 4vw, 26px);
+        }
+
+        svg#overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .snake-body { fill: none; stroke-width: 15; stroke-linecap: round; opacity: 0.9; }
+        .snake-glow { fill: none; stroke-width: 22; stroke-linecap: round; opacity: 0.3; filter: blur(5px); }
+        .snake-tongue {
+            stroke: #ff3333;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            animation: tongueFlicker 0.15s infinite alternate ease-in-out;
+        }
+        @keyframes tongueFlicker {
+            from { transform: scaleY(1); opacity: 1; }
+            to { transform: scaleY(1.4) translateY(-2px); opacity: 0.6; }
+        }
+
+        .ladder-rail { stroke: #5D4037; stroke-width: 10; stroke-linecap: round; filter: drop-shadow(2px 4px 3px rgba(0,0,0,0.4)); }
+        .ladder-step { stroke: #8D6E63; stroke-width: 6; stroke-linecap: round; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.3)); }
+
+        .gift-box {
+            width: 80%;
+            height: 80%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 25%;
+            animation: float 2s infinite ease-in-out;
+            font-size: clamp(16px, 4.5vw, 30px);
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+        @keyframes float { 
+            0%, 100% { transform: translateY(0) scale(1); } 
+            50% { transform: translateY(-3px) scale(1.05); } 
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .active-turn { animation: pulse-green 1.5s infinite; border-color: #4CAF50 !important; }
+
+        @keyframes shake {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            50% { transform: rotate(15deg); }
+            75% { transform: rotate(-15deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .rolling-dice { animation: shake 0.2s infinite; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+        }
+
+        #teacher-panel {
+            position: fixed;
+            top: 0; right: -100%;
+            width: 100%;
+            max-width: 450px;
+            height: 100%;
+            background: white;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+            z-index: 2000;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        #teacher-panel.open { right: 0; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+<div class="max-w-6xl mx-auto">
+    <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-3xl shadow-sm border border-green-100">
+        <div>
+            <h1 class="text-2xl md:text-3xl text-green-700 leading-tight">TriNajisTech</h1>
+            <p class="text-[10px] font-bold text-green-500 uppercase tracking-widest">Edisi Pendidikan Taharah (5 Pemain)</p>
+        </div>
+        <button onclick="toggleTeacherPanel()" class="group bg-slate-800 text-white p-3 md:p-4 rounded-2xl hover:bg-slate-700 transition-all shadow-lg flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-12 transition-transform"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span class="hidden md:inline font-bold text-sm">MENU GURU</span>
+        </button>
+    </div>
+
+    <!-- Turn Tracker -->
+    <div id="turn-tracker" class="grid grid-cols-3 sm:grid-cols-5 gap-3 md:gap-4 justify-center mb-10"></div>
+
+    <div class="flex flex-col lg:flex-row gap-10 items-center lg:items-start">
+        <div id="game-board-container">
+            <div id="game-board"></div>
+            <svg id="overlay" viewBox="0 0 1000 1000"></svg>
+            <div id="tokens-container"></div>
+        </div>
+
+        <div class="w-full max-w-xs space-y-6">
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl text-center border-b-8 border-green-200">
+                <div id="dice-container" class="bg-gray-50 inline-block p-6 rounded-3xl mb-4 border-2 border-dashed border-gray-200 cursor-pointer" onclick="handleRoll()">
+                    <div id="dice-display" class="text-7xl select-none">🎲</div>
+                </div>
+                <button id="roll-btn" onclick="handleRoll()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-black text-xl py-5 rounded-2xl shadow-[0_8px_0_#c2410c] active:shadow-none active:translate-y-2 transition-all">BALING DADU</button>
+                <p id="game-status" class="mt-6 font-bold text-gray-500 uppercase text-xs tracking-widest">Menunggu...</p>
+            </div>
+            
+            <div class="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
+                <h4 class="font-black text-sm mb-3 opacity-80 uppercase">Legenda Petak</h4>
+                <div class="space-y-3 relative z-10 text-xs">
+                    <div class="flex items-center gap-3">
+                        <span class="w-3 h-3 bg-green-400 rounded-full border-2 border-white"></span>
+                        <span class="font-bold">MUDAH (-1 petak jika salah)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="w-3 h-3 bg-blue-400 rounded-full border-2 border-white"></span>
+                        <span class="font-bold">SEDERHANA (-3 petak jika salah)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="w-3 h-3 bg-red-400 rounded-full border-2 border-white"></span>
+                        <span class="font-bold">SUSAH (-5 petak jika salah)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Question Modal -->
+<div id="question-modal" class="modal">
+    <div class="bg-white p-8 rounded-[3rem] max-w-lg w-full shadow-2xl border-[12px] border-yellow-300 text-center relative" id="modal-content">
+        <div id="q-category-tag" class="absolute -top-6 left-1/2 -translate-x-1/2 px-8 py-2 rounded-full text-white font-black text-sm shadow-lg">MUDAH</div>
+        <h2 class="text-2xl font-black mb-8 text-slate-800 mt-4" id="q-text">Sila Jawab...</h2>
+        <div id="options-container" class="grid gap-4"></div>
+    </div>
+</div>
+
+<!-- Teacher Management Panel -->
+<div id="teacher-panel">
+    <div class="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <h3 class="font-black tracking-tight">PENGURUSAN SOALAN</h3>
+        <button onclick="toggleTeacherPanel()" class="text-3xl font-light hover:text-red-400 transition-colors">&times;</button>
+    </div>
+    
+    <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+        <div class="mb-10 bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+            <h4 class="font-black text-slate-800 mb-4 text-sm">Bina Soalan Baru</h4>
+            <div class="space-y-4">
+                <textarea id="new-q-text" rows="2" placeholder="Teks soalan..." class="w-full p-4 border-2 border-slate-200 rounded-2xl text-sm outline-none focus:border-blue-500"></textarea>
+                <input id="new-q-opt0" type="text" placeholder="Jawapan Betul" class="w-full p-3 border-2 border-green-100 bg-green-50 rounded-xl text-sm outline-none focus:border-green-500">
+                <input id="new-q-opt1" type="text" placeholder="Salah 1" class="w-full p-3 border-2 border-slate-200 rounded-xl text-sm outline-none">
+                <input id="new-q-opt2" type="text" placeholder="Salah 2" class="w-full p-3 border-2 border-slate-200 rounded-xl text-sm outline-none">
+                <input id="new-q-opt3" type="text" placeholder="Salah 3" class="w-full p-3 border-2 border-slate-200 rounded-xl text-sm outline-none">
+                <select id="new-q-diff" class="w-full p-3 border-2 border-slate-200 rounded-xl text-sm outline-none bg-white">
+                    <option value="easy">Mudah</option>
+                    <option value="medium">Sederhana</option>
+                    <option value="hard">Susah</option>
+                </select>
+                <button onclick="addNewQuestion()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 active:scale-95 transition-all">SIMPAN</button>
+            </div>
+        </div>
+        <div id="editor-list" class="space-y-4"></div>
+    </div>
+</div>
+
+<script>
+    // --- AUDIO ENGINE ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    
+    function initAudio() {
+        if (!audioCtx) audioCtx = new AudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type, duration, vol=0.1) {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function soundRoll() { playTone(Math.random() * 200 + 500, 'square', 0.05, 0.05); }
+    function soundStep() { playTone(600, 'sine', 0.08, 0.1); }
+    function soundCorrect() { [523.25, 659.25, 783.99, 1046.50].forEach((f,i) => setTimeout(()=>playTone(f, 'sine', 0.2, 0.1), i*100)); }
+    function soundWrong() { playTone(150, 'sawtooth', 0.5, 0.1); setTimeout(()=>playTone(100, 'sawtooth', 0.5, 0.1), 150); }
+    function soundLadder() { let t=0; [300, 400, 500, 600, 700, 800].forEach(f => { setTimeout(()=>playTone(f, 'sine', 0.1, 0.1), t); t+=80; }); }
+    function soundSnake() {
+        initAudio();
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.6);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+    }
+
+    // --- GAME DATA ---
+    const ladders = [{start: 4, end: 14}, {start: 9, end: 31}, {start: 33, end: 85}, {start: 52, end: 88}, {start: 80, end: 99}];
+    const snakes = [
+        {start: 98, end: 78, color: '#f43f5e', glow: '#fb7185'},
+        {start: 62, end: 18, color: '#8b5cf6', glow: '#a78bfa'},
+        {start: 48, end: 26, color: '#f59e0b', glow: '#fbbf24'},
+        {start: 92, end: 53, color: '#10b981', glow: '#34d399'},
+        {start: 21, end: 2, color: '#3b82f6', glow: '#60a5fa'}
+    ];
+    
+    let questionsbank = [
+        // 10 Mudah
+        { id: 1, text: "اير كنچيڠ بايي للاكي باوه 2 تاهون يڠ هاڽ مينوم سوسو ايبو اياله", options: ["مغلظة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سوچي"], correct: 2, diff: 'easy' },
+        { id: 2, text: "نجيس انجيڠ ترماسوق دالم كاتݢوري", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "هاروس"], correct: 2, diff: 'easy' },
+        { id: 3, text: "داره مأنسي ترماسوق دالم نجيس", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سوچي"], correct: 1, diff: 'easy' },
+        { id: 4, text: "نجيس يڠ ڤاليڠ ريڠن اياله", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سموا سام"], correct: 2, diff: 'easy' },
+        { id: 5, text: "نجيس كوچيڠ ترماسوق دالم", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 1, diff: 'easy' },
+        { id: 6, text: "نجيس بابي اياله", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "هاروس"], correct: 2, diff: 'easy' },
+        { id: 7, text: "نجيس سدرهان دكنالي سباݢاي", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سوچي"], correct: 1, diff: 'easy' },
+        { id: 8, text: "اير كنچيڠ اورڠ ديواس ترماسوق", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 1, diff: 'easy' },
+        { id: 9, text: "نجيس ڤاليڠ برات اياله", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "مُطْلَق"], correct: 2, diff: 'easy' },
+        { id: 10, text: "نجيس بايي ڤرمڤوان ترماسوق", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 1, diff: 'easy' },
+        
+        // 10 Sederhana
+        { id: 11, text: "احمد تركنا اير كنچيڠ بايي للاكي يڠ برعمور 1 تاهون دان هاڽ مينوم سوسو ايبو. نجيس ايت اياله", options: ["مُتَوَسِّطَة", "مغَلَّظَة", "مُخَفَّفَة", "سوچي"], correct: 2, diff: 'medium' },
+        { id: 12, text: "سيتي ترڤيجق نجيس كوچيڠ. نجيس ايت ترݢولوڠ دالم", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سوچي"], correct: 1, diff: 'medium' },
+        { id: 13, text: "انتارا بريكوت، يڠ ماناكه نجيس مغَلَّظَة؟", options: ["داره", "اير كچينڠ", "انجيڠ", "ڤلوه"], correct: 2, diff: 'medium' },
+        { id: 14, text: "نجيس بريكوت اداله مُتَوَسِّطَة كچوالي", options: ["نجيس مأنسي", "داره", "انجيڠ", "نانَه"], correct: 2, diff: 'medium' },
+        { id: 15, text: "علي تركنا اءير ليور انجيڠ. اي دكيرا سباݢاي", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 2, diff: 'medium' },
+        { id: 16, text: "يڠ ماناكه چونتوه نجيس مُخَفَّفَة؟", options: ["نجيس بايي ڤرمڤوان", "اير كنچيڠ بايي للاكي باوه 2 تاهون", "داره", "نجيس كوچيڠ"], correct: 1, diff: 'medium' },
+        { id: 17, text: "نجيس مأنسي ترݢولوڠ دالم", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "هاروس"], correct: 1, diff: 'medium' },
+        { id: 18, text: "اءير مونته مأنسي ترماسوق", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "سوچي"], correct: 1, diff: 'medium' },
+        { id: 19, text: "انتارا برايكوت، يڠ ڤاليڠ ريڠن اياله", options: ["داره", "نجيس انجيڠ", "اير كنچيڠ بايي للاكي باوه 2 تاهون", "نجيس مأنسي"], correct: 2, diff: 'medium' },
+        { id: 20, text: "برايكوت اداله كاتݢوري نجيس، كچوالي", options: ["مغَلَّظَة", "مُتَوَسِّطَة", "مُخَفَّفَة", "مُكَرَّمَة"], correct: 3, diff: 'medium' },
+        
+        // 10 Susah
+        { id: 21, text: "انتارا برايكوت، يڠ ماناكه ڤدانن يڠ بتول؟", options: ["انجيڠ – مُتَوَسِّطَة", "بايي للاكي باوه ٢ تاهون – مُخَفَّفَة", "داره – مغَلَّظَة", "نجيس مأنسي – مُخَفَّفَة"], correct: 1, diff: 'hard' },
+        { id: 22, text: "سأورڠ بايي للاكي برعمور 3 تاهون كنچيڠ ڤد ڤاكاين. نجيس ايت اياله:", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 1, diff: 'hard' },
+        { id: 23, text: "انتارا برايكوت، يڠ ماناكه بوكن نجيس مُتَوَسِّطَة؟", options: ["نجيس مأنسي", "اءير كنچيڠ اورڠ ديواس", "داره", "بابي"], correct: 3, diff: 'hard' },
+        { id: 24, text: "ڤپاتاءن ماناكه بنر؟", options: ["سموا نجيس اداله مغَلَّظَة", "نجيس بايي ڤرمڤوان اياله مُخَفَّفَة", "نجيس انجيڠ اياله مغَلَّظَة", "داره اياله مُخَفَّفَة"], correct: 2, diff: 'hard' },
+        { id: 25, text: "انتارا برايكوت، يڠ ماناكه چونتوه نجيس سدرهان؟", options: ["اير كنچيڠ بايي للاكي باوه 2 تاهون", "نجيس انجيڠ", "داره", "اير ليور بايي"], correct: 2, diff: 'hard' },
+        { id: 26, text: "سأورڠ بايي للاكي مينوم سوسو فورمولا دان كنچيڠ. نجيس ايت اياله:", options: ["مُخَفَّفَة", "مُتَوَسِّطَة", "مغَلَّظَة", "سوچي"], correct: 1, diff: 'hard' },
+        { id: 27, text: "مڠاڤ نجيس مغَلَّظَة دأڠݢڤ ڤاليڠ برات؟", options: ["موده هيلڠ", "مليبتكن حيوان ترتنتو", "تيدق بربهاي", "تيدق ڤرلو دأيلقكن"], correct: 1, diff: 'hard' },
+        { id: 28, text: "انتارا برايكوت، يڠ ماناكه ݢابوڠن يڠ ساله؟", options: ["بابي – مغَلَّظَة", "داره – مُتَوَسِّطَة", "نجيس بايي ڤرمڤوان – مُخَفَّفَة", "نجيس مأنسي – مُتَوَسِّطَة"], correct: 2, diff: 'hard' },
+        { id: 29, text: "انتارا برايكوت، يڠ ماناكه سيتواسي نجيس مُخَفَّفَة؟", options: ["نجيس كوچيڠ", "اير كنچيڠ بايي للاكي باوه 2 تاهون", "اير ليور انجيڠ", "داره"], correct: 1, diff: 'hard' },
+        { id: 30, text: "سأورڠ موريد مڠاتاكن سموا نجيس اداله سام برات. ڤپاتاءن اين اياله:", options: ["بتول", "ساله", "هاروس", "سنة"], correct: 1, diff: 'hard' }
+    ];
+
+    const gifts = {
+        12:'easy', 17:'easy', 25:'easy', 30:'easy', 39:'easy',
+        44:'medium', 50:'medium', 56:'medium', 64:'medium', 71:'medium',
+        77:'hard', 82:'hard', 89:'hard', 94:'hard', 97:'hard',
+        5:'easy', 15:'easy', 23:'easy', 28:'easy', 35:'easy',
+        41:'medium', 47:'medium', 58:'medium', 68:'medium', 73:'medium',
+        75:'hard', 84:'hard', 87:'hard', 93:'hard', 96:'hard'
+    };
+
+    let players = [
+        {id:1, pos:1, emoji:'🦁', color:'#f59e0b', score:0},
+        {id:2, pos:1, emoji:'🐸', color:'#10b981', score:0},
+        {id:3, pos:1, emoji:'🦊', color:'#ef4444', score:0},
+        {id:4, pos:1, emoji:'🐼', color:'#3b82f6', score:0},
+        {id:5, pos:1, emoji:'🐵', color:'#8b5cf6', score:0}
+    ];
+
+    let turn = 0;
+    let isRolling = false;
+
+    // --- GAME ENGINE FUNCTIONS ---
+    function createBoard() {
+        const board = document.getElementById('game-board');
+        board.innerHTML = '';
+        for (let r = 9; r >= 0; r--) {
+            for (let c = 0; c < 10; c++) {
+                let col = (r % 2 === 0) ? c : (9 - c);
+                let num = (r * 10) + col + 1;
+                const cell = document.createElement('div');
+                cell.className = `cell ${num === 100 ? 'bg-win' : `bg-${(num % 5) + 1}`}`;
+                cell.id = `cell-${num}`;
+                
+                const label = document.createElement('span');
+                label.innerText = num;
+                label.className = "absolute top-1 left-2 text-[10px] opacity-20 pointer-events-none";
+                if(num === 100) label.style.opacity = "0"; 
+                cell.appendChild(label);
+
+                if (num === 100) {
+                    const winContent = document.createElement('div');
+                    winContent.innerHTML = '<div style="font-size:2.5rem;" class="pointer-events-none">🏆</div>';
+                    cell.appendChild(winContent);
+                } else if (gifts[num]) {
+                    const colorMap = {easy:'bg-green-400', medium:'bg-blue-400', hard:'bg-red-400'};
+                    cell.innerHTML += `<div class="gift-box ${colorMap[gifts[num]]} pointer-events-none">🎁</div>`;
+                }
+                board.appendChild(cell);
+            }
+        }
+        initTokens();
+        drawOverlays();
+        updateTurnDisplay();
+        renderEditorList();
+    }
+
+    function initTokens() {
+        const container = document.getElementById('tokens-container');
+        container.innerHTML = '';
+        players.forEach(p => {
+            const t = document.createElement('div');
+            t.id = `token-${p.id}`;
+            t.className = 'player-token pointer-events-none';
+            t.style.background = p.color;
+            t.setAttribute('data-emoji', p.emoji);
+            container.appendChild(t);
+        });
+        positionTokens();
+    }
+
+    function positionTokens() {
+        const board = document.getElementById('game-board');
+        const boardRect = board.getBoundingClientRect();
+        players.forEach(p => {
+            const cell = document.getElementById(`cell-${p.pos}`);
+            const cellRect = cell.getBoundingClientRect();
+            const t = document.getElementById(`token-${p.id}`);
+            
+            // Calculate center of cell relative to board container
+            const x = (cellRect.left - boardRect.left) + (cellRect.width / 2);
+            const y = (cellRect.top - boardRect.top) + (cellRect.height / 2);
+            
+            t.style.left = `${x}px`;
+            t.style.top = `${y}px`;
+        });
+    }
+
+    function getPos(num) {
+        const cell = document.getElementById(`cell-${num}`);
+        const board = document.getElementById('game-board');
+        const rect = cell.getBoundingClientRect();
+        const bRect = board.getBoundingClientRect();
+        return {
+            x: (rect.left - bRect.left + rect.width/2) * (1000/bRect.width),
+            y: (rect.top - bRect.top + rect.height/2) * (1000/bRect.height)
+        };
+    }
+
+    function drawOverlays() {
+        const svg = document.getElementById('overlay');
+        svg.innerHTML = '';
+        ladders.forEach(l => {
+            const p1 = getPos(l.start), p2 = getPos(l.end);
+            const dx = p2.x - p1.x, dy = p2.y - p1.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const angle = Math.atan2(dy, dx);
+            const offset = 14; 
+
+            const ox = Math.cos(angle + Math.PI/2) * offset;
+            const oy = Math.sin(angle + Math.PI/2) * offset;
+
+            const line = (x1, y1, x2, y2, cls) => {
+                const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                el.setAttribute("x1", x1); el.setAttribute("y1", y1); el.setAttribute("x2", x2); el.setAttribute("y2", y2);
+                el.setAttribute("class", cls); svg.appendChild(el);
+            };
+            
+            line(p1.x + ox, p1.y + oy, p2.x + ox, p2.y + oy, "ladder-rail");
+            line(p1.x - ox, p1.y - oy, p2.x - ox, p2.y - oy, "ladder-rail");
+            
+            const numSteps = Math.floor(dist / 25);
+            for(let i=1; i <= numSteps; i++) {
+                const r = i / (numSteps + 1);
+                const stepX = p1.x + dx * r;
+                const stepY = p1.y + dy * r;
+                const stepOx = Math.cos(angle + Math.PI/2) * (offset + 3);
+                const stepOy = Math.sin(angle + Math.PI/2) * (offset + 3);
+                line(stepX + stepOx, stepY + stepOy, stepX - stepOx, stepY - stepOy, "ladder-step");
+            }
+        });
+
+        snakes.forEach((s, i) => {
+            const h = getPos(s.start), t = getPos(s.end);
+            const dx = t.x - h.x;
+            const dy = t.y - h.y;
+            const angle = Math.atan2(dy, dx);
+            
+            const cp1x = h.x + dx * 0.3 + Math.cos(angle + Math.PI/2) * (i%2?70:-70);
+            const cp1y = h.y + dy * 0.3 + Math.sin(angle + Math.PI/2) * (i%2?70:-70);
+            const cp2x = h.x + dx * 0.7 + Math.cos(angle - Math.PI/2) * (i%2?70:-70);
+            const cp2y = h.y + dy * 0.7 + Math.sin(angle - Math.PI/2) * (i%2?70:-70);
+
+            const d = `M ${h.x} ${h.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${t.x} ${t.y}`;
+            
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+            const glow = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            glow.setAttribute("d", d); glow.setAttribute("class", "snake-glow"); glow.setAttribute("stroke", s.glow);
+            g.appendChild(glow);
+
+            const b = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            b.setAttribute("d", d); b.setAttribute("class", "snake-body"); b.setAttribute("stroke", s.color);
+            g.appendChild(b);
+
+            const pattern = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            pattern.setAttribute("d", d); pattern.setAttribute("stroke", "rgba(255,255,255,0.4)");
+            pattern.setAttribute("stroke-width", "6"); pattern.setAttribute("fill", "none");
+            pattern.setAttribute("stroke-dasharray", "10,15"); pattern.setAttribute("stroke-linecap", "round");
+            g.appendChild(pattern);
+
+            const angleDeg = (angle * 180 / Math.PI) + 90;
+            const headGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            headGroup.setAttribute("transform", `translate(${h.x}, ${h.y}) rotate(${angleDeg})`);
+
+            const snakeHead = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+            snakeHead.setAttribute("cx", "0"); snakeHead.setAttribute("cy", "0");
+            snakeHead.setAttribute("rx", "14"); snakeHead.setAttribute("ry", "10");
+            snakeHead.setAttribute("fill", s.color);
+            headGroup.appendChild(snakeHead);
+
+            const eye1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            eye1.setAttribute("cx", "-5"); eye1.setAttribute("cy", "-3"); eye1.setAttribute("r", "3.5"); eye1.setAttribute("fill", "white");
+            const eye2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            eye2.setAttribute("cx", "5"); eye2.setAttribute("cy", "-3"); eye2.setAttribute("r", "3.5"); eye2.setAttribute("fill", "white");
+            headGroup.appendChild(eye1); headGroup.appendChild(eye2);
+
+            const tongue = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            tongue.setAttribute("d", `M 0 -10 L -4 -20 M 0 -10 L 4 -20`);
+            tongue.setAttribute("class", "snake-tongue");
+            headGroup.appendChild(tongue);
+
+            g.appendChild(headGroup);
+            svg.appendChild(g);
+        });
+    }
+
+    async function handleRoll() {
+        if(isRolling) return;
+        initAudio();
+        isRolling = true;
+        document.getElementById('roll-btn').disabled = true;
+        
+        const diceDisplay = document.getElementById('dice-display');
+        diceDisplay.classList.add('rolling-dice');
+        
+        let roll = 0;
+        const dice = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+        for(let i=0; i<12; i++) {
+            roll = Math.floor(Math.random()*6)+1;
+            diceDisplay.innerText = dice[roll-1];
+            soundRoll();
+            await new Promise(r => setTimeout(r, 60));
+        }
+        diceDisplay.classList.remove('rolling-dice');
+
+        let p = players[turn];
+        for(let i=0; i<roll; i++) {
+            if(p.pos < 100) { 
+                p.pos++; 
+                positionTokens(); 
+                soundStep();
+                
+                const currentCell = document.getElementById(`cell-${p.pos}`);
+                currentCell.style.transform = 'scale(1.2)';
+                setTimeout(() => currentCell.style.transform = '', 150);
+                await new Promise(r => setTimeout(r, 200)); 
+            }
+        }
+        checkPosition(p);
+    }
+
+    function checkPosition(p) {
+        const ladder = ladders.find(l => l.start === p.pos);
+        const snake = snakes.find(s => s.start === p.pos);
+        const diff = gifts[p.pos];
+        if(diff) {
+            setTimeout(() => showQuestion(p, diff), 400);
+        } else if(ladder) { 
+            setTimeout(() => { 
+                p.pos = ladder.end; 
+                positionTokens(); 
+                soundLadder(); 
+                nextTurn(); 
+            }, 500);
+        } else if(snake) { 
+            setTimeout(() => { 
+                p.pos = snake.end; 
+                positionTokens(); 
+                soundSnake(); 
+                nextTurn(); 
+            }, 500);
+        } else {
+            nextTurn();
+        }
+    }
+
+    function showQuestion(p, diff) {
+        const pool = questionsbank.filter(q => q.diff === diff);
+        const q = pool.length > 0 ? pool[Math.floor(Math.random()*pool.length)] : questionsbank[0];
+        
+        const modal = document.getElementById('question-modal');
+        modal.style.display = 'flex';
+
+        document.getElementById('q-text').innerText = q.text;
+        const cont = document.getElementById('options-container');
+        cont.innerHTML = '';
+        const correctVal = q.options[q.correct];
+        
+        const colors = {easy:'bg-green-500', medium:'bg-blue-500', hard:'bg-red-500'};
+        const tag = document.getElementById('q-category-tag');
+        tag.className = `absolute -top-6 left-1/2 -translate-x-1/2 px-8 py-2 rounded-full text-white font-black text-sm shadow-lg ${colors[diff]}`;
+        tag.innerText = diff.toUpperCase();
+
+        const shuffledOptions = [...q.options].sort(()=>Math.random()-0.5);
+        shuffledOptions.forEach(opt => {
+            const b = document.createElement('button');
+            b.className = "p-4 bg-slate-50 border-2 rounded-2xl font-bold hover:border-yellow-400 hover:bg-yellow-50 transition-all text-slate-700";
+            b.innerText = opt;
+            b.onclick = async () => {
+                initAudio();
+                modal.style.display = 'none';
+                
+                if(opt === correctVal) { 
+                    p.score += (diff==='easy'?10:diff==='medium'?20:30); 
+                    soundCorrect();
+                    confetti({particleCount: 150, spread: 80, origin: { y: 0.6 }}); 
+                    nextTurn();
+                } else { 
+                    soundWrong();
+                    await new Promise(r => setTimeout(r, 400));
+                    
+                    let penalty = diff === 'easy' ? 1 : (diff === 'medium' ? 3 : 5);
+                    let target = Math.max(1, p.pos - penalty);
+                    
+                    while(p.pos > target) {
+                        p.pos--;
+                        positionTokens();
+                        soundStep();
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    nextTurn();
+                }
+            };
+            cont.appendChild(b);
+        });
+    }
+
+    function nextTurn() {
+        if(players[turn].pos >= 100) {
+            document.getElementById('game-status').innerHTML = `<span class="text-green-600 font-black">PEMAIN ${players[turn].emoji} MENANG!</span>`;
+            soundCorrect();
+            setTimeout(soundCorrect, 200);
+            confetti({particleCount:500, spread:160});
+            return;
+        }
+        turn = (turn + 1) % players.length;
+        isRolling = false;
+        document.getElementById('roll-btn').disabled = false;
+        updateTurnDisplay();
+    }
+
+    function updateTurnDisplay() {
+        const tracker = document.getElementById('turn-tracker');
+        tracker.innerHTML = '';
+        players.forEach((p, i) => {
+            const active = i === turn;
+            const card = document.createElement('div');
+            card.className = `p-2 md:p-3 rounded-xl bg-white border-2 text-center transition-all duration-300 ${active?'border-green-500 shadow-xl scale-110 active-turn -translate-y-1': 'border-slate-100 opacity-60'}`;
+            card.innerHTML = `<div class="text-xl md:text-2xl">${p.emoji}</div><div class="text-[10px] font-black">${p.score}</div>`;
+            tracker.appendChild(card);
+        });
+        document.getElementById('game-status').innerText = `Giliran: ${players[turn].emoji}`;
+    }
+
+    function toggleTeacherPanel() { document.getElementById('teacher-panel').classList.toggle('open'); }
+
+    function renderEditorList() {
+        const list = document.getElementById('editor-list');
+        list.innerHTML = '';
+        questionsbank.forEach(q => {
+            const div = document.createElement('div');
+            div.className = "p-3 bg-white border rounded-xl flex justify-between items-center hover:border-red-200 transition-colors";
+            div.innerHTML = `
+                <div class="text-xs font-bold truncate pr-4 text-slate-700">${q.text}</div>
+                <button onclick="deleteQuestion(${q.id})" class="text-red-400 hover:text-red-600 hover:scale-125 transition-transform bg-red-50 w-6 h-6 rounded-full flex items-center justify-center">×</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function addNewQuestion() {
+        const text = document.getElementById('new-q-text').value;
+        const opt0 = document.getElementById('new-q-opt0').value;
+        if(!text || !opt0) return;
+        
+        questionsbank.unshift({
+            id: Date.now(), 
+            text, 
+            options: [
+                opt0, 
+                document.getElementById('new-q-opt1').value || "Salah", 
+                document.getElementById('new-q-opt2').value || "Salah", 
+                document.getElementById('new-q-opt3').value || "Salah"
+            ],
+            correct: 0, 
+            diff: document.getElementById('new-q-diff').value
+        });
+        
+        renderEditorList();
+        // Clear inputs
+        document.getElementById('new-q-text').value = '';
+        document.getElementById('new-q-opt0').value = '';
+        document.getElementById('new-q-opt1').value = '';
+        document.getElementById('new-q-opt2').value = '';
+        document.getElementById('new-q-opt3').value = '';
+    }
+
+    function deleteQuestion(id) {
+        questionsbank = questionsbank.filter(q => q.id !== id);
+        renderEditorList();
+    }
+
+    // Initialize the game
+    window.onload = () => {
+        createBoard();
+        window.addEventListener('resize', positionTokens);
+    };
+</script>
+
+</body>
+</html>
